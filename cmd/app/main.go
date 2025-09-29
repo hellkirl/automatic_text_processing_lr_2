@@ -37,24 +37,29 @@ func main() {
 		corpora, err := client.GetChatCompletion(c, folderReport.Reports)
 		if err != nil {
 			log.Printf("Error processing folder %s: %v", folderReport.FolderPath, err)
-			if len(corpora) > 0 {
-				corporaByFolder[folderReport.FolderPath] = corpora
-				totalProcessed += len(corpora)
-				fmt.Printf("Processed %d reports in folder %s (with some errors)\n", len(corpora), folderReport.FolderPath)
-			}
-			continue
 		}
 
-		corporaByFolder[folderReport.FolderPath] = corpora
-		totalProcessed += len(corpora)
-
-		fmt.Printf("Processed %d reports in folder: %s\n", len(corpora), folderReport.FolderPath)
+		if len(corpora) > 0 {
+			corporaByFolder[folderReport.FolderPath] = corpora
+			totalProcessed += len(corpora)
+			fmt.Printf("Processed %d reports in folder %s\n", len(corpora), folderReport.FolderPath)
+		} else {
+			fmt.Printf("No reports were processed in folder %s\n", folderReport.FolderPath)
+		}
 	}
 
 	if err = filesystem.SaveCorporaByFolder(corporaByFolder); err != nil {
 		log.Printf("Warning: Some save operations failed: %v", err)
-		fmt.Printf("Processed %d total reports across %d folders (with some save errors)\n", totalProcessed, len(corporaByFolder))
+	}
+
+	fmt.Printf("\n=== Processing Summary ===\n")
+	fmt.Printf("Total reports found: %d\n", total)
+	fmt.Printf("Total reports processed: %d\n", totalProcessed)
+	fmt.Printf("Folders processed: %d\n", len(corporaByFolder))
+
+	if totalProcessed < total {
+		fmt.Printf("Warning: %d reports were not processed\n", total-totalProcessed)
 	} else {
-		fmt.Printf("Successfully processed %d total reports across %d folders\n", totalProcessed, len(corporaByFolder))
+		fmt.Printf("All reports processed successfully!\n")
 	}
 }

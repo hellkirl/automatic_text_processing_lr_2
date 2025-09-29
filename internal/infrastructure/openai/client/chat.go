@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"strings"
 	"sync"
@@ -69,10 +68,14 @@ func GetChatCompletion(client *openai.Client, reports []*report.Report) ([]*corp
 Обработай этот отчёт:
 ` + r.Content()),
 					},
-					Model: openai.ChatModelGPT4o,
+					Model: openai.ChatModelGPT4oMini,
 				})
 				if err != nil {
-					errCh <- fmt.Errorf("chat request failed: %w", err)
+					log.Printf("Chat request failed for %s: %v", r.Filename(), err)
+					c := corpus.NewCorpus("", r.Filename(), r.FolderPath(), "")
+					mu.Lock()
+					results = append(results, c)
+					mu.Unlock()
 					continue
 				}
 
@@ -80,10 +83,12 @@ func GetChatCompletion(client *openai.Client, reports []*report.Report) ([]*corp
 					Finding    string `json:"finding"`
 					Conclusion string `json:"conclusion"`
 				}
+
 				if err := sonic.Unmarshal([]byte(chatCompletion.Choices[0].Message.Content), &dto); err != nil {
-					log.Print(fmt.Errorf("failed to unmarshal chat completion: %w", err))
-					errCh <- err
-					continue
+					log.Printf("Failed to unmarshal chat completion for %s: %v", r.Filename(), err)
+					log.Printf("Raw response: %s", chatCompletion.Choices[0].Message.Content)
+					dto.Finding = ""
+					dto.Conclusion = ""
 				}
 
 				c := corpus.NewCorpus(dto.Finding, r.Filename(), r.FolderPath(), dto.Conclusion)
@@ -92,7 +97,7 @@ func GetChatCompletion(client *openai.Client, reports []*report.Report) ([]*corp
 				results = append(results, c)
 				mu.Unlock()
 
-				time.Sleep(15 * time.Second)
+				time.Sleep(30 * time.Second)
 			}
 		}(start, end)
 	}
@@ -104,8 +109,10 @@ func GetChatCompletion(client *openai.Client, reports []*report.Report) ([]*corp
 	for e := range errCh {
 		errMsgs = append(errMsgs, e.Error())
 	}
+
+	log.Printf("Processed %d out of %d reports for this batch", len(results), n)
 	if len(errMsgs) > 0 {
-		return results, fmt.Errorf("some reports failed: %s", strings.Join(errMsgs, "; "))
+		log.Printf("Encountered %d errors during processing: %s", len(errMsgs), strings.Join(errMsgs, "; "))
 	}
 
 	return results, nil

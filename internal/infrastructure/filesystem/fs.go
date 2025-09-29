@@ -31,9 +31,11 @@ func FindReportsByFolder(dir string) ([]*FolderReports, int, error) {
 		if strings.HasSuffix(d.Name(), ".txt") {
 			content, err := os.ReadFile(path)
 			if err != nil {
+				log.Printf("Warning: Failed to read file %s: %v", path, err)
 				return nil
 			}
 			if len(content) == 0 {
+				log.Printf("Warning: Skipping empty file %s", path)
 				return nil
 			}
 
